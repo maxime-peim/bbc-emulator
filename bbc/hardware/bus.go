@@ -1,14 +1,9 @@
 package hardware
 
 import (
+	"bbc/logical"
 	"bbc/utils"
 	"fmt"
-)
-
-var (
-	AdressableSegment = utils.NewSegment(0x0000, 0xFFFF)
-	StackSegment      = utils.NewSegment(0x0100, 0x1FF)
-	ZeroPageSegment   = utils.NewSegment(0x0000, 0x00FF)
 )
 
 type Bus struct {
@@ -44,7 +39,7 @@ type WritableComponent interface {
 	OffsetWrite(byte, uint16, uint8) error
 }
 
-func (bus Bus) componentReadAt(addr uint16) ReadableComponent {
+func (bus *Bus) componentReadAt(addr uint16) ReadableComponent {
 	for _, component := range bus.addressables {
 		if !component.IsReadable() {
 			continue
@@ -58,7 +53,7 @@ func (bus Bus) componentReadAt(addr uint16) ReadableComponent {
 	return nil
 }
 
-func (bus Bus) componentWriteAt(addr uint16) WritableComponent {
+func (bus *Bus) componentWriteAt(addr uint16) WritableComponent {
 	for _, component := range bus.addressables {
 		if !component.IsWritable() {
 			continue
@@ -71,7 +66,7 @@ func (bus Bus) componentWriteAt(addr uint16) WritableComponent {
 	return nil
 }
 
-func (bus Bus) Reset() {
+func (bus *Bus) Reset() {
 	bus.Clock.Reset()
 	for _, component := range bus.watchers {
 		component.Reset()
@@ -81,7 +76,11 @@ func (bus Bus) Reset() {
 	}
 }
 
-func (bus Bus) DirectRead(addr uint16) (byte, error) {
+func (bus *Bus) Tick() error {
+	return bus.Clock.Tick()
+}
+
+func (bus *Bus) DirectRead(addr uint16) (byte, error) {
 	readComponent := bus.componentReadAt(addr)
 	if readComponent == nil {
 		return 0, fmt.Errorf("reading garbage as no component answer for this address %x", addr)
@@ -89,7 +88,7 @@ func (bus Bus) DirectRead(addr uint16) (byte, error) {
 	return readComponent.DirectRead(addr)
 }
 
-func (bus Bus) OffsetRead(addr uint16, offset uint8) (byte, uint16, error) {
+func (bus *Bus) OffsetRead(addr uint16, offset uint8) (byte, uint16, error) {
 	readComponent := bus.componentReadAt(addr)
 	if readComponent == nil {
 		return 0, 0, fmt.Errorf("reading garbage as no component answer for this address %x", addr)
@@ -97,7 +96,7 @@ func (bus Bus) OffsetRead(addr uint16, offset uint8) (byte, uint16, error) {
 	return readComponent.OffsetRead(addr, offset)
 }
 
-func (bus Bus) DirectWrite(value byte, addr uint16) error {
+func (bus *Bus) DirectWrite(value byte, addr uint16) error {
 	writeComponent := bus.componentWriteAt(addr)
 	if writeComponent == nil {
 		return fmt.Errorf("writing in void as no component answer for this address %x", addr)
@@ -141,7 +140,7 @@ func (bus *Bus) AddComponent(component Component) error {
 	return nil
 }
 
-func (bus Bus) GetComponent(name string) Component {
+func (bus *Bus) GetComponent(name string) Component {
 	if component, ok := bus.addressables[name]; ok {
 		return component
 	}
@@ -152,7 +151,7 @@ func (bus Bus) GetComponent(name string) Component {
 }
 
 func (bus *Bus) WriteMultiple(values []byte, start uint16) error {
-	if len(values)+int(start) > int(AdressableSegment.End) {
+	if len(values)+int(start) > int(logical.AdressableSegment.End) {
 		return fmt.Errorf("cannot write outside memory bound")
 	}
 	addr := start

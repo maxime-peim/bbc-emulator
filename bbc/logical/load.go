@@ -1,6 +1,15 @@
 package logical
 
-var LDA = InstructionDescription{
+func loadTo(register Register) AfterReadFn {
+	return AfterReadFn(func(value byte, cpu LogicalCPU, bus LogicalBus) error {
+		cpu.SetStatus(value == 0, ZeroFlagBit)
+		cpu.SetStatus(value&0x80 != 0, NegativeFlagBit)
+		cpu.SetRegister(value, register)
+		return nil
+	})
+}
+
+var lda = InstructionDescription{
 	Name:    "LDA",
 	SubExec: loadTo(RegisterA),
 	Access:  Read,
@@ -16,7 +25,7 @@ var LDA = InstructionDescription{
 	},
 }
 
-var LDX = InstructionDescription{
+var ldx = InstructionDescription{
 	Name:    "LDX",
 	SubExec: loadTo(RegisterX),
 	Access:  Read,
@@ -29,7 +38,7 @@ var LDX = InstructionDescription{
 	},
 }
 
-var LDY = InstructionDescription{
+var ldy = InstructionDescription{
 	Name:    "LDY",
 	SubExec: loadTo(RegisterY),
 	Access:  Read,

@@ -1,13 +1,14 @@
 package logical
 
 import (
-	"bbc/hardware"
 	"bbc/utils"
 )
 
-type ReadFn func(LogicalCPU, *hardware.Bus) (byte, error)
-type WriteFn func(byte, LogicalCPU, *hardware.Bus) error
-type ReadModifyWriteFn func(OperationRMWFn, LogicalCPU, *hardware.Bus) error
+type ReadFn func(LogicalCPU, LogicalBus) (byte, error)
+type WriteFn func(byte, LogicalCPU, LogicalBus) error
+type ReadModifyWriteFn func(OperationRMWFn, LogicalCPU, LogicalBus) error
+type BranchFn func(TakeBranchFn, LogicalCPU, LogicalBus) error
+type JumpFn func(LogicalCPU, LogicalBus) (uint16, error)
 
 type AddressingMode uint8
 type AccessMode uint8
@@ -34,14 +35,16 @@ const (
 	Write
 	ReadModifyWrite
 	ImpliedAccess
+	RelativeAccess
+	JumpAccess
 )
 
-func readZeroPageOffset(base, offset uint8, cpu LogicalCPU, bus *hardware.Bus) (byte, uint16, error) {
+func readZeroPageOffset(base, offset uint8, cpu LogicalCPU, bus LogicalBus) (byte, uint16, error) {
 	// 6502 performs a read at base, unused but makes the clocks tick
-	if err := bus.Clock.Tick(); err != nil {
+	if err := bus.Tick(); err != nil {
 		return 0, 0, err
 	}
-	addr := (uint16(base) + uint16(offset)) & 0xff
+	addr := utils.SamePageOffset(uint16(base), offset)
 	value, err := bus.DirectRead(addr)
 	if err != nil {
 		return 0, 0, err
@@ -49,9 +52,9 @@ func readZeroPageOffset(base, offset uint8, cpu LogicalCPU, bus *hardware.Bus) (
 	return value, addr, nil
 }
 
-func readIndexedIndirectOffset(ptr, offset uint8, cpu LogicalCPU, bus *hardware.Bus) (byte, uint16, error) {
+func readIndexedIndirectOffset(ptr, offset uint8, cpu LogicalCPU, bus LogicalBus) (byte, uint16, error) {
 	// 6502 performs a read at ptr, unused but makes the clocks tick
-	if err := bus.Clock.Tick(); err != nil {
+	if err := bus.Tick(); err != nil {
 		return 0, 0, err
 	}
 	low, err := bus.DirectRead(uint16(ptr + offset))
@@ -62,7 +65,7 @@ func readIndexedIndirectOffset(ptr, offset uint8, cpu LogicalCPU, bus *hardware.
 	if err != nil {
 		return 0, 0, err
 	}
-	addr := utils.AddressFromNibble(high, low)
+	addr := utils.AddressFromNibbles(high, low)
 	value, err := bus.DirectRead(addr)
 	if err != nil {
 		return 0, 0, err
@@ -70,7 +73,7 @@ func readIndexedIndirectOffset(ptr, offset uint8, cpu LogicalCPU, bus *hardware.
 	return value, addr, nil
 }
 
-func readIndirectIndexedOffset(ptr, offset uint8, cpu LogicalCPU, bus *hardware.Bus) (byte, uint16, error) {
+func readIndirectIndexedOffset(ptr, offset uint8, cpu LogicalCPU, bus LogicalBus) (byte, uint16, error) {
 	low, err := bus.DirectRead(uint16(ptr))
 	if err != nil {
 		return 0, 0, err
@@ -79,24 +82,24 @@ func readIndirectIndexedOffset(ptr, offset uint8, cpu LogicalCPU, bus *hardware.
 	if err != nil {
 		return 0, 0, err
 	}
-	value, addr, err := bus.OffsetRead(utils.AddressFromNibble(high, low), offset)
+	value, addr, err := bus.OffsetRead(utils.AddressFromNibbles(high, low), offset)
 	if err != nil {
 		return 0, 0, err
 	}
 	return value, addr, nil
 }
 
-func writeZeroPageOffset(value byte, base, offset uint8, cpu LogicalCPU, bus *hardware.Bus) error {
+func writeZeroPageOffset(value byte, base, offset uint8, cpu LogicalCPU, bus LogicalBus) error {
 	// 6502 performs a read at base, unused but makes the clocks tick
-	if err := bus.Clock.Tick(); err != nil {
+	if err := bus.Tick(); err != nil {
 		return err
 	}
-	return bus.DirectWrite(value, (uint16(base)+uint16(offset))&0xff)
+	return bus.DirectWrite(value, utils.SamePageOffset(uint16(base), offset))
 }
 
-func writeIndexedIndirectOffset(value byte, ptr, offset uint8, cpu LogicalCPU, bus *hardware.Bus) error {
+func writeIndexedIndirectOffset(value byte, ptr, offset uint8, cpu LogicalCPU, bus LogicalBus) error {
 	// 6502 performs a read at ptr, unused but makes the clocks tick
-	if err := bus.Clock.Tick(); err != nil {
+	if err := bus.Tick(); err != nil {
 		return err
 	}
 	low, err := bus.DirectRead(uint16(ptr + offset))
@@ -107,10 +110,10 @@ func writeIndexedIndirectOffset(value byte, ptr, offset uint8, cpu LogicalCPU, b
 	if err != nil {
 		return err
 	}
-	return bus.DirectWrite(value, utils.AddressFromNibble(high, low))
+	return bus.DirectWrite(value, utils.AddressFromNibbles(high, low))
 }
 
-func writeIndirectIndexedOffset(value byte, ptr, offset uint8, cpu LogicalCPU, bus *hardware.Bus) error {
+func writeIndirectIndexedOffset(value byte, ptr, offset uint8, cpu LogicalCPU, bus LogicalBus) error {
 	low, err := bus.DirectRead(uint16(ptr))
 	if err != nil {
 		return err
@@ -119,10 +122,10 @@ func writeIndirectIndexedOffset(value byte, ptr, offset uint8, cpu LogicalCPU, b
 	if err != nil {
 		return err
 	}
-	return bus.OffsetWrite(value, utils.AddressFromNibble(high, low), offset)
+	return bus.OffsetWrite(value, utils.AddressFromNibbles(high, low), offset)
 }
 
-var immediateRead = ReadFn(func(cpu LogicalCPU, bus *hardware.Bus) (byte, error) {
+var immediateRead = ReadFn(func(cpu LogicalCPU, bus LogicalBus) (byte, error) {
 	value, err := cpu.NextByte()
 	if err != nil {
 		return 0, err
@@ -130,7 +133,7 @@ var immediateRead = ReadFn(func(cpu LogicalCPU, bus *hardware.Bus) (byte, error)
 	return value, nil
 })
 
-var absoluteRead = ReadFn(func(cpu LogicalCPU, bus *hardware.Bus) (byte, error) {
+var absoluteRead = ReadFn(func(cpu LogicalCPU, bus LogicalBus) (byte, error) {
 	addr, err := cpu.NextWord()
 	if err != nil {
 		return 0, err
@@ -142,7 +145,7 @@ var absoluteRead = ReadFn(func(cpu LogicalCPU, bus *hardware.Bus) (byte, error) 
 	return value, nil
 })
 
-var absoluteWrite = WriteFn(func(value byte, cpu LogicalCPU, bus *hardware.Bus) error {
+var absoluteWrite = WriteFn(func(value byte, cpu LogicalCPU, bus LogicalBus) error {
 	addr, err := cpu.NextWord()
 	if err != nil {
 		return err
@@ -150,7 +153,7 @@ var absoluteWrite = WriteFn(func(value byte, cpu LogicalCPU, bus *hardware.Bus) 
 	return bus.DirectWrite(value, addr)
 })
 
-var absoluteRMW = ReadModifyWriteFn(func(operation OperationRMWFn, cpu LogicalCPU, bus *hardware.Bus) error {
+var absoluteRMW = ReadModifyWriteFn(func(operation OperationRMWFn, cpu LogicalCPU, bus LogicalBus) error {
 	addr, err := cpu.NextWord()
 	if err != nil {
 		return err
@@ -160,17 +163,17 @@ var absoluteRMW = ReadModifyWriteFn(func(operation OperationRMWFn, cpu LogicalCP
 		return err
 	}
 	// one tick to do the operation
-	if err := bus.Clock.Tick(); err != nil {
+	if err := bus.Tick(); err != nil {
 		return err
 	}
-	newValue, err := operation(value)
+	newValue, err := operation(value, cpu, bus)
 	if err != nil {
 		return err
 	}
 	return bus.DirectWrite(newValue, addr)
 })
 
-var zeroPageRead = ReadFn(func(cpu LogicalCPU, bus *hardware.Bus) (byte, error) {
+var zeroPageRead = ReadFn(func(cpu LogicalCPU, bus LogicalBus) (byte, error) {
 	addr, err := cpu.NextByte()
 	if err != nil {
 		return 0, err
@@ -182,7 +185,7 @@ var zeroPageRead = ReadFn(func(cpu LogicalCPU, bus *hardware.Bus) (byte, error) 
 	return value, nil
 })
 
-var zeroPageWrite = WriteFn(func(value byte, cpu LogicalCPU, bus *hardware.Bus) error {
+var zeroPageWrite = WriteFn(func(value byte, cpu LogicalCPU, bus LogicalBus) error {
 	addr, err := cpu.NextByte()
 	if err != nil {
 		return err
@@ -190,7 +193,7 @@ var zeroPageWrite = WriteFn(func(value byte, cpu LogicalCPU, bus *hardware.Bus) 
 	return bus.DirectWrite(value, uint16(addr))
 })
 
-var zeroPageRMW = ReadModifyWriteFn(func(operation OperationRMWFn, cpu LogicalCPU, bus *hardware.Bus) error {
+var zeroPageRMW = ReadModifyWriteFn(func(operation OperationRMWFn, cpu LogicalCPU, bus LogicalBus) error {
 	addr, err := cpu.NextByte()
 	if err != nil {
 		return err
@@ -200,17 +203,17 @@ var zeroPageRMW = ReadModifyWriteFn(func(operation OperationRMWFn, cpu LogicalCP
 		return err
 	}
 	// one tick to do the operation
-	if err := bus.Clock.Tick(); err != nil {
+	if err := bus.Tick(); err != nil {
 		return err
 	}
-	newValue, err := operation(value)
+	newValue, err := operation(value, cpu, bus)
 	if err != nil {
 		return err
 	}
 	return bus.DirectWrite(newValue, uint16(addr))
 })
 
-var zeroPageXRead = ReadFn(func(cpu LogicalCPU, bus *hardware.Bus) (byte, error) {
+var zeroPageXRead = ReadFn(func(cpu LogicalCPU, bus LogicalBus) (byte, error) {
 	addr, err := cpu.NextByte()
 	if err != nil {
 		return 0, err
@@ -222,7 +225,7 @@ var zeroPageXRead = ReadFn(func(cpu LogicalCPU, bus *hardware.Bus) (byte, error)
 	return value, nil
 })
 
-var zeroPageXWrite = WriteFn(func(value byte, cpu LogicalCPU, bus *hardware.Bus) error {
+var zeroPageXWrite = WriteFn(func(value byte, cpu LogicalCPU, bus LogicalBus) error {
 	addr, err := cpu.NextByte()
 	if err != nil {
 		return err
@@ -230,7 +233,7 @@ var zeroPageXWrite = WriteFn(func(value byte, cpu LogicalCPU, bus *hardware.Bus)
 	return writeZeroPageOffset(value, addr, cpu.GetRegister(RegisterX), cpu, bus)
 })
 
-var zeroPageXRMW = ReadModifyWriteFn(func(operation OperationRMWFn, cpu LogicalCPU, bus *hardware.Bus) error {
+var zeroPageXRMW = ReadModifyWriteFn(func(operation OperationRMWFn, cpu LogicalCPU, bus LogicalBus) error {
 	addr, err := cpu.NextByte()
 	if err != nil {
 		return err
@@ -240,17 +243,17 @@ var zeroPageXRMW = ReadModifyWriteFn(func(operation OperationRMWFn, cpu LogicalC
 		return err
 	}
 	// one tick to do the operation
-	if err := bus.Clock.Tick(); err != nil {
+	if err := bus.Tick(); err != nil {
 		return err
 	}
-	newValue, err := operation(value)
+	newValue, err := operation(value, cpu, bus)
 	if err != nil {
 		return err
 	}
 	return writeZeroPageOffset(newValue, addr, cpu.GetRegister(RegisterX), cpu, bus)
 })
 
-var zeroPageYRead = ReadFn(func(cpu LogicalCPU, bus *hardware.Bus) (byte, error) {
+var zeroPageYRead = ReadFn(func(cpu LogicalCPU, bus LogicalBus) (byte, error) {
 	addr, err := cpu.NextByte()
 	if err != nil {
 		return 0, err
@@ -262,7 +265,7 @@ var zeroPageYRead = ReadFn(func(cpu LogicalCPU, bus *hardware.Bus) (byte, error)
 	return value, nil
 })
 
-var zeroPageYWrite = WriteFn(func(value byte, cpu LogicalCPU, bus *hardware.Bus) error {
+var zeroPageYWrite = WriteFn(func(value byte, cpu LogicalCPU, bus LogicalBus) error {
 	addr, err := cpu.NextByte()
 	if err != nil {
 		return err
@@ -270,7 +273,7 @@ var zeroPageYWrite = WriteFn(func(value byte, cpu LogicalCPU, bus *hardware.Bus)
 	return writeZeroPageOffset(value, addr, cpu.GetRegister(RegisterY), cpu, bus)
 })
 
-var absoluteXRead = ReadFn(func(cpu LogicalCPU, bus *hardware.Bus) (byte, error) {
+var absoluteXRead = ReadFn(func(cpu LogicalCPU, bus LogicalBus) (byte, error) {
 	addr, err := cpu.NextWord()
 	if err != nil {
 		return 0, err
@@ -282,7 +285,7 @@ var absoluteXRead = ReadFn(func(cpu LogicalCPU, bus *hardware.Bus) (byte, error)
 	return value, nil
 })
 
-var absoluteXWrite = WriteFn(func(value byte, cpu LogicalCPU, bus *hardware.Bus) error {
+var absoluteXWrite = WriteFn(func(value byte, cpu LogicalCPU, bus LogicalBus) error {
 	addr, err := cpu.NextWord()
 	if err != nil {
 		return err
@@ -290,7 +293,7 @@ var absoluteXWrite = WriteFn(func(value byte, cpu LogicalCPU, bus *hardware.Bus)
 	return bus.OffsetWrite(value, addr, cpu.GetRegister(RegisterX))
 })
 
-var absoluteXRMW = ReadModifyWriteFn(func(operation OperationRMWFn, cpu LogicalCPU, bus *hardware.Bus) error {
+var absoluteXRMW = ReadModifyWriteFn(func(operation OperationRMWFn, cpu LogicalCPU, bus LogicalBus) error {
 	addr, err := cpu.NextWord()
 	if err != nil {
 		return err
@@ -300,10 +303,10 @@ var absoluteXRMW = ReadModifyWriteFn(func(operation OperationRMWFn, cpu LogicalC
 		return err
 	}
 	// one tick to do the operation
-	if err := bus.Clock.Tick(); err != nil {
+	if err := bus.Tick(); err != nil {
 		return err
 	}
-	newValue, err := operation(value)
+	newValue, err := operation(value, cpu, bus)
 	if err != nil {
 		return err
 	}
@@ -311,7 +314,7 @@ var absoluteXRMW = ReadModifyWriteFn(func(operation OperationRMWFn, cpu LogicalC
 	return bus.DirectWrite(newValue, effectiveAddr)
 })
 
-var absoluteYRead = ReadFn(func(cpu LogicalCPU, bus *hardware.Bus) (byte, error) {
+var absoluteYRead = ReadFn(func(cpu LogicalCPU, bus LogicalBus) (byte, error) {
 	addr, err := cpu.NextWord()
 	if err != nil {
 		return 0, err
@@ -323,7 +326,7 @@ var absoluteYRead = ReadFn(func(cpu LogicalCPU, bus *hardware.Bus) (byte, error)
 	return value, nil
 })
 
-var absoluteYWrite = WriteFn(func(value byte, cpu LogicalCPU, bus *hardware.Bus) error {
+var absoluteYWrite = WriteFn(func(value byte, cpu LogicalCPU, bus LogicalBus) error {
 	addr, err := cpu.NextWord()
 	if err != nil {
 		return err
@@ -331,16 +334,33 @@ var absoluteYWrite = WriteFn(func(value byte, cpu LogicalCPU, bus *hardware.Bus)
 	return bus.OffsetWrite(value, addr, cpu.GetRegister(RegisterY))
 })
 
-var relativeRead = ReadFn(func(cpu LogicalCPU, bus *hardware.Bus) (byte, error) {
-	_, err := cpu.NextByte()
+var relativeFn = BranchFn(func(take TakeBranchFn, cpu LogicalCPU, bus LogicalBus) error {
+	operand, err := cpu.NextByte()
 	if err != nil {
-		return 0, err
+		return err
 	}
-	// TODO: finish
-	return 0, nil
+	takeBranch, err := take(cpu, bus)
+	if err != nil {
+		return err
+	}
+	if !takeBranch {
+		return nil
+	}
+	if err := bus.Tick(); err != nil {
+		return err
+	}
+	pcl := cpu.GetRegister(RegisterPCL)
+	pch := cpu.GetRegister(RegisterPCH)
+	pc := utils.AddressFromNibbles(pch, pcl)
+	if utils.IsPageCrossed(pc, operand) {
+		if err := bus.Tick(); err != nil {
+			return err
+		}
+	}
+	return nil
 })
 
-var indirectXRead = ReadFn(func(cpu LogicalCPU, bus *hardware.Bus) (byte, error) {
+var indirectXRead = ReadFn(func(cpu LogicalCPU, bus LogicalBus) (byte, error) {
 	ptr, err := cpu.NextByte()
 	if err != nil {
 		return 0, err
@@ -352,7 +372,7 @@ var indirectXRead = ReadFn(func(cpu LogicalCPU, bus *hardware.Bus) (byte, error)
 	return value, nil
 })
 
-var indirectXWrite = WriteFn(func(value byte, cpu LogicalCPU, bus *hardware.Bus) error {
+var indirectXWrite = WriteFn(func(value byte, cpu LogicalCPU, bus LogicalBus) error {
 	ptr, err := cpu.NextByte()
 	if err != nil {
 		return err
@@ -360,7 +380,7 @@ var indirectXWrite = WriteFn(func(value byte, cpu LogicalCPU, bus *hardware.Bus)
 	return writeIndexedIndirectOffset(value, ptr, cpu.GetRegister(RegisterX), cpu, bus)
 })
 
-var indirectXRMW = ReadModifyWriteFn(func(operation OperationRMWFn, cpu LogicalCPU, bus *hardware.Bus) error {
+var indirectXRMW = ReadModifyWriteFn(func(operation OperationRMWFn, cpu LogicalCPU, bus LogicalBus) error {
 	ptr, err := cpu.NextByte()
 	if err != nil {
 		return err
@@ -370,10 +390,10 @@ var indirectXRMW = ReadModifyWriteFn(func(operation OperationRMWFn, cpu LogicalC
 		return err
 	}
 	// one tick to do the operation
-	if err := bus.Clock.Tick(); err != nil {
+	if err := bus.Tick(); err != nil {
 		return err
 	}
-	newValue, err := operation(value)
+	newValue, err := operation(value, cpu, bus)
 	if err != nil {
 		return err
 	}
@@ -381,7 +401,7 @@ var indirectXRMW = ReadModifyWriteFn(func(operation OperationRMWFn, cpu LogicalC
 	return bus.DirectWrite(newValue, addr)
 })
 
-var indirectYRead = ReadFn(func(cpu LogicalCPU, bus *hardware.Bus) (byte, error) {
+var indirectYRead = ReadFn(func(cpu LogicalCPU, bus LogicalBus) (byte, error) {
 	ptr, err := cpu.NextByte()
 	if err != nil {
 		return 0, err
@@ -393,7 +413,7 @@ var indirectYRead = ReadFn(func(cpu LogicalCPU, bus *hardware.Bus) (byte, error)
 	return value, nil
 })
 
-var indirectYWrite = WriteFn(func(value byte, cpu LogicalCPU, bus *hardware.Bus) error {
+var indirectYWrite = WriteFn(func(value byte, cpu LogicalCPU, bus LogicalBus) error {
 	ptr, err := cpu.NextByte()
 	if err != nil {
 		return err
@@ -401,7 +421,7 @@ var indirectYWrite = WriteFn(func(value byte, cpu LogicalCPU, bus *hardware.Bus)
 	return writeIndirectIndexedOffset(value, ptr, cpu.GetRegister(RegisterY), cpu, bus)
 })
 
-var indirectYRMW = ReadModifyWriteFn(func(operation OperationRMWFn, cpu LogicalCPU, bus *hardware.Bus) error {
+var indirectYRMW = ReadModifyWriteFn(func(operation OperationRMWFn, cpu LogicalCPU, bus LogicalBus) error {
 	ptr, err := cpu.NextByte()
 	if err != nil {
 		return err
@@ -411,15 +431,50 @@ var indirectYRMW = ReadModifyWriteFn(func(operation OperationRMWFn, cpu LogicalC
 		return err
 	}
 	// one tick to do the operation
-	if err := bus.Clock.Tick(); err != nil {
+	if err := bus.Tick(); err != nil {
 		return err
 	}
-	newValue, err := operation(value)
+	newValue, err := operation(value, cpu, bus)
 	if err != nil {
 		return err
 	}
 	// don't do the boundary check again
 	return bus.DirectWrite(newValue, addr)
+})
+
+var accumulatorRMW = ReadModifyWriteFn(func(operation OperationRMWFn, cpu LogicalCPU, bus LogicalBus) error {
+	// read next instruction byte (and throw it away)
+	return bus.Tick()
+})
+
+var impliedFn = ExecFn(func(cpu LogicalCPU, bus LogicalBus) error {
+	// read next instruction byte (and throw it away)
+	return bus.Tick()
+})
+
+var absoluteJmp = JumpFn(func(cpu LogicalCPU, bus LogicalBus) (uint16, error) {
+	addr, err := cpu.NextWord()
+	if err != nil {
+		return 0, nil
+	}
+	return addr, nil
+})
+
+var indirectJmp = JumpFn(func(cpu LogicalCPU, bus LogicalBus) (uint16, error) {
+	ptr, err := cpu.NextWord()
+	if err != nil {
+		return 0, err
+	}
+	low, err := bus.DirectRead(ptr)
+	if err != nil {
+		return 0, err
+	}
+	high, err := bus.DirectRead(utils.SamePageOffset(ptr, 1))
+	if err != nil {
+		return 0, err
+	}
+	addr := utils.AddressFromNibbles(high, low)
+	return addr, nil
 })
 
 var AddressModeFetch = map[AccessMode]map[AddressingMode]interface{}{
@@ -428,7 +483,6 @@ var AddressModeFetch = map[AccessMode]map[AddressingMode]interface{}{
 		ZeroPage:  zeroPageRead,
 		ZeroPageX: zeroPageXRead,
 		ZeroPageY: zeroPageYRead,
-		Relative:  relativeRead,
 		Absolute:  absoluteRead,
 		AbsoluteX: absoluteXRead,
 		AbsoluteY: absoluteYRead,
@@ -446,12 +500,22 @@ var AddressModeFetch = map[AccessMode]map[AddressingMode]interface{}{
 		IndirectY: indirectYWrite,
 	},
 	ReadModifyWrite: {
-		ZeroPage:  zeroPageRMW,
-		ZeroPageX: zeroPageXRMW,
-		Absolute:  absoluteRMW,
-		AbsoluteX: absoluteXRMW,
-		IndirectX: indirectXRMW,
-		IndirectY: indirectYRMW,
+		Accumulator: accumulatorRMW,
+		ZeroPage:    zeroPageRMW,
+		ZeroPageX:   zeroPageXRMW,
+		Absolute:    absoluteRMW,
+		AbsoluteX:   absoluteXRMW,
+		IndirectX:   indirectXRMW,
+		IndirectY:   indirectYRMW,
 	},
-	ImpliedAccess: {},
+	ImpliedAccess: {
+		Implied: impliedFn,
+	},
+	RelativeAccess: {
+		Relative: relativeFn,
+	},
+	JumpAccess: {
+		Absolute: absoluteJmp,
+		Indirect: indirectJmp,
+	},
 }

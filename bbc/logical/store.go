@@ -1,6 +1,12 @@
 package logical
 
-var STA = InstructionDescription{
+func storeFrom(register Register) BeforeWriteFn {
+	return BeforeWriteFn(func(cpu LogicalCPU, bus LogicalBus) (byte, error) {
+		return cpu.GetRegister(register), nil
+	})
+}
+
+var sta = InstructionDescription{
 	Name:    "STA",
 	SubExec: storeFrom(RegisterA),
 	Access:  Write,
@@ -15,7 +21,7 @@ var STA = InstructionDescription{
 	},
 }
 
-var STX = InstructionDescription{
+var stx = InstructionDescription{
 	Name:    "STX",
 	SubExec: storeFrom(RegisterX),
 	Access:  Write,
@@ -26,7 +32,7 @@ var STX = InstructionDescription{
 	},
 }
 
-var STY = InstructionDescription{
+var sty = InstructionDescription{
 	Name:    "STY",
 	SubExec: storeFrom(RegisterX),
 	Access:  Write,

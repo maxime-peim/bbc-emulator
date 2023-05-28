@@ -2,7 +2,6 @@ package tests
 
 import (
 	"bbc/hardware"
-	"bbc/hardware/cpu"
 	"fmt"
 	"os"
 	"testing"
@@ -10,7 +9,7 @@ import (
 
 type Context struct {
 	bus   *hardware.Bus
-	cpu   *cpu.CPU
+	cpu   *hardware.CPU
 	clock *hardware.Clock
 }
 
@@ -21,7 +20,7 @@ func (ctx *Context) Reset() {
 var testCtx Context
 
 func TestMain(m *testing.M) {
-	cpu := cpu.NewCPU()
+	cpu := hardware.NewCPU()
 	clock := hardware.NewClock(2e6)
 	ram := hardware.NewRAM()
 

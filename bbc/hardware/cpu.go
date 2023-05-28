@@ -1,28 +1,12 @@
-package cpu
+package hardware
 
 import (
-	"bbc/hardware"
-	"bbc/hardware/cpu/logical"
+	"bbc/logical"
 	"bbc/utils"
 	"fmt"
 
 	"github.com/kelindar/bitmap"
 )
-
-var baseInstructionSet = []logical.InstructionDescription{
-	logical.LDA,
-	logical.LDX,
-	logical.LDY,
-	logical.STA,
-	logical.STX,
-	logical.STY,
-	logical.TAX,
-	logical.TXA,
-	logical.TAY,
-	logical.TYA,
-	logical.TXS,
-	logical.TSX,
-}
 
 type CPU struct {
 	A      uint8
@@ -36,7 +20,7 @@ type CPU struct {
 	instructionSet      map[string]*logical.Instruction
 	instructionByOpcode map[logical.Opcode]*logical.Instruction
 
-	bus *hardware.Bus
+	bus *Bus
 }
 
 func (cpu *CPU) checkBus() {
@@ -89,6 +73,10 @@ func (cpu *CPU) SetRegister(value byte, register logical.Register) {
 		cpu.X = value
 	case logical.RegisterY:
 		cpu.Y = value
+	case logical.RegisterPCL:
+		cpu.ProgramCounter = cpu.ProgramCounter&0xFF00 | uint16(value)
+	case logical.RegisterPCH:
+		cpu.ProgramCounter = cpu.ProgramCounter&0x00FF | uint16(value)<<8
 	case logical.RegisterStack:
 		cpu.StackPointer = value
 	case logical.RegisterStatus:
@@ -104,6 +92,10 @@ func (cpu *CPU) GetRegister(readable logical.Register) byte {
 		return cpu.X
 	case logical.RegisterY:
 		return cpu.Y
+	case logical.RegisterPCL:
+		return byte(cpu.ProgramCounter & 0xFF)
+	case logical.RegisterPCH:
+		return byte((cpu.ProgramCounter >> 8) & 0xFF)
 	case logical.RegisterStack:
 		return cpu.StackPointer
 	case logical.RegisterStatus:
@@ -112,28 +104,16 @@ func (cpu *CPU) GetRegister(readable logical.Register) byte {
 	return 0
 }
 
-func (cpu *CPU) UpdateStatus(value byte, flags ...logical.StatusFlag) {
-	for _, flag := range flags {
-		switch flag {
-		case logical.CarryFlagBit:
-		case logical.BreakFlagBit:
-		case logical.DecimalModeFlagBit:
-		case logical.InterruptDisableFlagBit:
-		case logical.NegativeFlagBit:
-			if value&0x8F != 0 {
-				cpu.Status.Set(uint32(logical.ZeroFlagBit))
-			} else {
-				cpu.Status.Remove(uint32(logical.ZeroFlagBit))
-			}
-		case logical.OverflowFlagBit:
-		case logical.ZeroFlagBit:
-			if value == 0 {
-				cpu.Status.Set(uint32(logical.ZeroFlagBit))
-			} else {
-				cpu.Status.Remove(uint32(logical.ZeroFlagBit))
-			}
-		}
+func (cpu *CPU) SetStatus(set bool, flag logical.StatusFlag) {
+	if set {
+		cpu.Status.Set(uint32(flag))
+	} else {
+		cpu.Status.Remove(uint32(flag))
 	}
+}
+
+func (cpu *CPU) GetStatus(flag logical.StatusFlag) bool {
+	return cpu.Status.Contains(uint32(flag))
 }
 
 func (cpu *CPU) ExecuteNext() error {
@@ -144,17 +124,26 @@ func (cpu *CPU) ExecuteNext() error {
 	return cpu.executeOpcode(logical.Opcode(opcode))
 }
 
-func (cpu *CPU) Push(value byte) {
-	stackTop := hardware.StackSegment.OffsetIn(uint16(cpu.StackPointer))
-	cpu.bus.DirectWrite(value, stackTop)
-	cpu.StackPointer--
+func (cpu *CPU) GetPC() uint16 { return cpu.ProgramCounter }
+func (cpu *CPU) SetPC(pc uint16) {
+	cpu.ProgramCounter = pc
 }
 
-func (cpu *CPU) Pop() byte {
+func (cpu *CPU) Push(value byte) error {
+	stackTop := logical.StackSegment.OffsetIn(uint16(cpu.StackPointer))
+	cpu.bus.DirectWrite(value, stackTop)
+	cpu.StackPointer--
+	return nil
+}
+
+func (cpu *CPU) Pop() (byte, error) {
 	cpu.StackPointer++
-	stackTop := hardware.StackSegment.OffsetIn(uint16(cpu.StackPointer))
-	value, _ := cpu.bus.DirectRead(stackTop)
-	return value
+	stackTop := logical.StackSegment.OffsetIn(uint16(cpu.StackPointer))
+	value, err := cpu.bus.DirectRead(stackTop)
+	if err != nil {
+		return 0, err
+	}
+	return value, nil
 }
 
 func (cpu *CPU) NextByte() (byte, error) {
@@ -177,7 +166,7 @@ func (cpu *CPU) NextWord() (uint16, error) {
 	if err != nil {
 		return 0, err
 	}
-	return utils.AddressFromNibble(high, low), nil
+	return utils.AddressFromNibbles(high, low), nil
 }
 
 func (cpu *CPU) GetName() string { return "CPU" }
@@ -195,7 +184,7 @@ func (cpu *CPU) Stop() error {
 	return nil
 }
 
-func (cpu *CPU) PlugToBus(bus *hardware.Bus) {
+func (cpu *CPU) PlugToBus(bus *Bus) {
 	cpu.bus = bus
 }
 
@@ -203,13 +192,13 @@ func NewCPU() *CPU {
 	status := bitmap.Bitmap{}
 	status.Grow(8)
 	cpu := CPU{
-		StackPointer:        uint8(hardware.StackSegment.Start & 0xff),
+		StackPointer:        uint8(logical.StackSegment.Start & 0xff),
 		Status:              status,
 		instructionSet:      map[string]*logical.Instruction{},
 		instructionByOpcode: map[logical.Opcode]*logical.Instruction{},
 	}
 
-	for _, ins := range baseInstructionSet {
+	for _, ins := range logical.BaseInstructionSet {
 		if err := ins.RegisterTo(&cpu); err != nil {
 			fmt.Printf("error while asm registration: %s", err.Error())
 		}

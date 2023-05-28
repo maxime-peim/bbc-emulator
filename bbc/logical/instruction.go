@@ -1,15 +1,16 @@
 package logical
 
 import (
-	"bbc/hardware"
 	"fmt"
 )
 
 type Opcode byte
-type AfterReadFn func(byte, LogicalCPU, *hardware.Bus) error
-type BeforeWriteFn func(LogicalCPU, *hardware.Bus) (byte, error)
-type OperationRMWFn func(byte) (byte, error)
-type ExecFn func(LogicalCPU, *hardware.Bus) error
+type AfterReadFn func(byte, LogicalCPU, LogicalBus) error
+type BeforeWriteFn func(LogicalCPU, LogicalBus) (byte, error)
+type OperationRMWFn func(byte, LogicalCPU, LogicalBus) (byte, error)
+type TakeBranchFn func(LogicalCPU, LogicalBus) (bool, error)
+type SetupJumpFn func(uint16, LogicalCPU, LogicalBus) error
+type ExecFn func(LogicalCPU, LogicalBus) error
 
 type Instruction struct {
 	Name   string
@@ -19,7 +20,7 @@ type Instruction struct {
 	subInstructionsByOpcode map[Opcode]ExecFn
 }
 
-func (instruction *Instruction) Execute(opcode Opcode, cpu LogicalCPU, bus *hardware.Bus) error {
+func (instruction *Instruction) Execute(opcode Opcode, cpu LogicalCPU, bus LogicalBus) error {
 	exec, ok := instruction.subInstructionsByOpcode[opcode]
 	if !ok {
 		return fmt.Errorf("Opcode %x does not belong to instruction %s", opcode, instruction.Name)
@@ -72,17 +73,35 @@ func (ins *InstructionDescription) RegisterTo(cpu LogicalCPU) error {
 		var execute ExecFn
 		switch ins.Access {
 		case ImpliedAccess:
-			execute, ok = ins.SubExec.(ExecFn)
+			impliedAddressingFn := addressingFnForAccess[mode].(ExecFn)
+			impliedInstructionFn, ok := ins.SubExec.(ExecFn)
 			if !ok {
 				return fmt.Errorf("access mode and sub-execute funtion signature don't match")
 			}
+			execute = func(cpu LogicalCPU, bus LogicalBus) error {
+				if err := impliedAddressingFn(cpu, bus); err != nil {
+					return err
+				}
+				return impliedInstructionFn(cpu, bus)
+			}
+		case RelativeAccess:
+			relativeAddressingFn := addressingFnForAccess[mode].(BranchFn)
+			relativeInstructionFn, ok := ins.SubExec.(TakeBranchFn)
+			if !ok {
+				return fmt.Errorf("access mode and sub-execute funtion signature don't match")
+			}
+			execute = func(cpu LogicalCPU, bus LogicalBus) error {
+				return relativeAddressingFn(relativeInstructionFn, cpu, bus)
+			}
+		case JumpAccess:
+			execute = addressingFnForAccess[mode].(ExecFn)
 		case Read:
 			readAddressingFn := addressingFnForAccess[mode].(ReadFn)
 			readInstructionFn, ok := ins.SubExec.(AfterReadFn)
 			if !ok {
 				return fmt.Errorf("access mode and sub-execute funtion signature don't match")
 			}
-			execute = func(cpu LogicalCPU, bus *hardware.Bus) error {
+			execute = func(cpu LogicalCPU, bus LogicalBus) error {
 				value, err := readAddressingFn(cpu, bus)
 				if err != nil {
 					return err
@@ -95,7 +114,7 @@ func (ins *InstructionDescription) RegisterTo(cpu LogicalCPU) error {
 			if !ok {
 				return fmt.Errorf("access mode and sub-execute funtion signature don't match")
 			}
-			execute = func(cpu LogicalCPU, bus *hardware.Bus) error {
+			execute = func(cpu LogicalCPU, bus LogicalBus) error {
 				value, err := writeInstructionFn(cpu, bus)
 				if err != nil {
 					return err
@@ -108,7 +127,7 @@ func (ins *InstructionDescription) RegisterTo(cpu LogicalCPU) error {
 			if !ok {
 				return fmt.Errorf("access mode and sub-execute funtion signature don't match")
 			}
-			execute = func(cpu LogicalCPU, bus *hardware.Bus) error {
+			execute = func(cpu LogicalCPU, bus LogicalBus) error {
 				return rmwAddressingFn(rmwInstructionFn, cpu, bus)
 			}
 		}

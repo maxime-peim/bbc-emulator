@@ -1,6 +1,7 @@
 package hardware
 
 import (
+	"bbc/logical"
 	"bbc/utils"
 )
 
@@ -14,7 +15,7 @@ func (ram *RAM) PlugToBus(bus *Bus) { ram.bus = bus }
 func (ram *RAM) IsWritable() bool   { return true }
 func (ram *RAM) IsReadable() bool   { return true }
 func (ram *RAM) GetSegment() *utils.Segment {
-	return AdressableSegment
+	return logical.AdressableSegment
 }
 
 func (ram *RAM) Start() error {
@@ -30,13 +31,15 @@ func (ram *RAM) Stop() error {
 }
 
 func (ram *RAM) DirectRead(addr uint16) (byte, error) {
+	if err := ram.bus.Tick(); err != nil {
+		return 0, err
+	}
 	return ram.memory[addr], nil
 }
 
 func (ram *RAM) OffsetRead(base uint16, offset uint8) (byte, uint16, error) {
-	if uint8(base&0xff)+offset < offset {
-		// page crossed
-		if err := ram.bus.Clock.Tick(); err != nil {
+	if utils.IsPageCrossed(base, offset) {
+		if err := ram.bus.Tick(); err != nil {
 			return 0, 0, err
 		}
 	}
@@ -50,13 +53,13 @@ func (ram *RAM) OffsetRead(base uint16, offset uint8) (byte, uint16, error) {
 
 func (ram *RAM) DirectWrite(value byte, addr uint16) error {
 	ram.memory[addr] = value
-	return nil
+	return ram.bus.Tick()
 }
 
 func (ram *RAM) OffsetWrite(value byte, base uint16, offset uint8) error {
-	if uint8(base&0xff)+offset < offset {
+	if utils.IsPageCrossed(base, offset) {
 		// page crossed
-		if err := ram.bus.Clock.Tick(); err != nil {
+		if err := ram.bus.Tick(); err != nil {
 			return err
 		}
 	}
@@ -64,13 +67,13 @@ func (ram *RAM) OffsetWrite(value byte, base uint16, offset uint8) error {
 }
 
 func (ram *RAM) Clear() {
-	for i := uint16(0); i <= AdressableSegment.End; i++ {
+	for i := uint16(0); i <= ram.GetSegment().End; i++ {
 		ram.memory[i] = 0
 	}
 }
 
 func NewRAM() *RAM {
 	return &RAM{
-		memory: make([]byte, AdressableSegment.Size()),
+		memory: make([]byte, logical.AdressableSegment.Size()),
 	}
 }

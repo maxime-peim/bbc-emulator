@@ -2,14 +2,13 @@ package main
 
 import (
 	"bbc/hardware"
-	"bbc/hardware/cpu"
 	"fmt"
 	"os"
 )
 
 func main() {
 	// BBC micro run at 2MHz
-	cpu := cpu.NewCPU()
+	cpu := hardware.NewCPU()
 	clock := hardware.NewClock(2e6)
 	ram := hardware.NewRAM()
 
