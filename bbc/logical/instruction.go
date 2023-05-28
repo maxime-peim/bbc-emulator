@@ -61,7 +61,7 @@ func (ins *InstructionDescription) RegisterTo(cpu LogicalCPU) error {
 		return fmt.Errorf("addressing function does not exist for access %d", ins.Access)
 	}
 
-	fmt.Printf("Registration %s\n", ins.Name)
+	fmt.Printf("\nRegistration %s\n", ins.Name)
 
 	for opcode, mode := range ins.OpcodeMapping {
 		if i := cpu.GetInstructionByOpcode(opcode); i != nil {
@@ -94,7 +94,18 @@ func (ins *InstructionDescription) RegisterTo(cpu LogicalCPU) error {
 				return relativeAddressingFn(relativeInstructionFn, cpu, bus)
 			}
 		case JumpAccess:
-			execute = addressingFnForAccess[mode].(ExecFn)
+			jumpAddressingFn := addressingFnForAccess[mode].(JumpFn)
+			jumpInstructionFn, ok := ins.SubExec.(SetupJumpFn)
+			if !ok {
+				return fmt.Errorf("access mode and sub-execute funtion signature don't match")
+			}
+			execute = func(cpu LogicalCPU, bus LogicalBus) error {
+				addr, err := jumpAddressingFn(cpu, bus)
+				if err != nil {
+					return nil
+				}
+				return jumpInstructionFn(addr, cpu, bus)
+			}
 		case Read:
 			readAddressingFn := addressingFnForAccess[mode].(ReadFn)
 			readInstructionFn, ok := ins.SubExec.(AfterReadFn)

@@ -55,4 +55,5 @@ var BaseInstructionSet = []InstructionDescription{
 	clc, cld, cli, clv, sec, sed, sei, // status
 	bcc, bcs, beq, bmi, bne, bpl, bvc, bvs, // branches
 	jmp, jsr, rts, // jumps
+	brk, nop, rti, // system
 }

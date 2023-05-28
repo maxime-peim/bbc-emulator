@@ -18,7 +18,7 @@ var bcs = InstructionDescription{
 	}),
 	Access: RelativeAccess,
 	OpcodeMapping: map[Opcode]AddressingMode{
-		0x90: Relative,
+		0xB0: Relative,
 	},
 }
 
@@ -29,7 +29,7 @@ var beq = InstructionDescription{
 	}),
 	Access: RelativeAccess,
 	OpcodeMapping: map[Opcode]AddressingMode{
-		0x90: Relative,
+		0xF0: Relative,
 	},
 }
 
@@ -40,7 +40,7 @@ var bmi = InstructionDescription{
 	}),
 	Access: RelativeAccess,
 	OpcodeMapping: map[Opcode]AddressingMode{
-		0x90: Relative,
+		0x30: Relative,
 	},
 }
 
@@ -51,7 +51,7 @@ var bne = InstructionDescription{
 	}),
 	Access: RelativeAccess,
 	OpcodeMapping: map[Opcode]AddressingMode{
-		0x90: Relative,
+		0xD0: Relative,
 	},
 }
 
@@ -62,7 +62,7 @@ var bpl = InstructionDescription{
 	}),
 	Access: RelativeAccess,
 	OpcodeMapping: map[Opcode]AddressingMode{
-		0x90: Relative,
+		0x10: Relative,
 	},
 }
 
@@ -73,7 +73,7 @@ var bvc = InstructionDescription{
 	}),
 	Access: RelativeAccess,
 	OpcodeMapping: map[Opcode]AddressingMode{
-		0x90: Relative,
+		0x50: Relative,
 	},
 }
 
@@ -84,6 +84,6 @@ var bvs = InstructionDescription{
 	}),
 	Access: RelativeAccess,
 	OpcodeMapping: map[Opcode]AddressingMode{
-		0x90: Relative,
+		0x70: Relative,
 	},
 }

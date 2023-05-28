@@ -10,12 +10,18 @@ func TestLDA(t *testing.T) {
 	initialPC := testCtx.cpu.ProgramCounter
 
 	program := []byte{
-		0xA9, 0x55, // LDA 0x55
+		0xA9, 0x55, // immediate
+		0xA5, 0x00, // zero page
+		0xB5, 0x00, // zero page X
+		0xAD, 0x00, 0x00, // absolute
+		0xBD, 0x00, 0x00,
 	}
 	testCtx.bus.WriteMultiple(program, initialPC)
 
-	if err := testCtx.cpu.ExecuteNext(); err != nil {
-		t.Fatalf(err.Error())
+	for i := 0; i < 5; i++ {
+		if err := testCtx.cpu.ExecuteNext(); err != nil {
+			t.Fatalf(err.Error())
+		}
 	}
 
 	if testCtx.cpu.A != 0x55 {

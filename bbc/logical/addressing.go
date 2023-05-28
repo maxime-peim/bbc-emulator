@@ -443,6 +443,12 @@ var indirectYRMW = ReadModifyWriteFn(func(operation OperationRMWFn, cpu LogicalC
 })
 
 var accumulatorRMW = ReadModifyWriteFn(func(operation OperationRMWFn, cpu LogicalCPU, bus LogicalBus) error {
+	value := cpu.GetRegister(RegisterA)
+	newA, err := operation(value, cpu, bus)
+	if err != nil {
+		return err
+	}
+	cpu.SetRegister(newA, RegisterA)
 	// read next instruction byte (and throw it away)
 	return bus.Tick()
 })

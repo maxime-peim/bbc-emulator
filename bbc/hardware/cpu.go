@@ -117,11 +117,17 @@ func (cpu *CPU) GetStatus(flag logical.StatusFlag) bool {
 }
 
 func (cpu *CPU) ExecuteNext() error {
+	preCycles := cpu.bus.Clock.GetCycles()
 	opcode, err := cpu.NextByte()
 	if err != nil {
 		return err
 	}
-	return cpu.executeOpcode(logical.Opcode(opcode))
+	if err := cpu.executeOpcode(logical.Opcode(opcode)); err != nil {
+		return err
+	}
+	postCycles := cpu.bus.Clock.GetCycles()
+	fmt.Printf("Took %d cycles\n", postCycles-preCycles)
+	return nil
 }
 
 func (cpu *CPU) GetPC() uint16 { return cpu.ProgramCounter }

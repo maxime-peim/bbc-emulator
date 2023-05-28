@@ -45,7 +45,7 @@ var iny = InstructionDescription{
 	SubExec: incdecRegister(RegisterY, true),
 	Access:  ImpliedAccess,
 	OpcodeMapping: map[Opcode]AddressingMode{
-		0xE8: Implied,
+		0xC8: Implied,
 	},
 }
 
@@ -70,7 +70,7 @@ var dex = InstructionDescription{
 	SubExec: incdecRegister(RegisterX, false),
 	Access:  ImpliedAccess,
 	OpcodeMapping: map[Opcode]AddressingMode{
-		0xE8: Implied,
+		0xCA: Implied,
 	},
 }
 
@@ -79,6 +79,6 @@ var dey = InstructionDescription{
 	SubExec: incdecRegister(RegisterY, false),
 	Access:  ImpliedAccess,
 	OpcodeMapping: map[Opcode]AddressingMode{
-		0xE8: Implied,
+		0x88: Implied,
 	},
 }

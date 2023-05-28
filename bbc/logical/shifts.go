@@ -1,20 +1,19 @@
 package logical
 
-func shiftUpdate(left bool) ExecFn {
-	return ExecFn(func(cpu LogicalCPU, bus LogicalBus) error {
-		oldA := cpu.GetRegister(RegisterA)
-		newA := byte(0)
+func shiftUpdate(left bool) OperationRMWFn {
+	return OperationRMWFn(func(value byte, cpu LogicalCPU, bus LogicalBus) (byte, error) {
+		newValue := byte(0)
 		if left {
-			newA = oldA << 1
-			cpu.SetStatus(oldA&0x80 != 0, CarryFlagBit)
+			newValue = value << 1
+			cpu.SetStatus(value&0x80 != 0, CarryFlagBit)
 		} else {
-			newA = oldA >> 1
-			cpu.SetStatus(oldA&0x1 != 0, CarryFlagBit)
+			newValue = value >> 1
+			cpu.SetStatus(value&0x1 != 0, CarryFlagBit)
 		}
-		cpu.SetStatus(newA == 0, ZeroFlagBit)
-		cpu.SetStatus(newA&0x80 != 0, NegativeFlagBit)
-		cpu.SetRegister(newA, RegisterA)
-		return nil
+		cpu.SetStatus(newValue == 0, ZeroFlagBit)
+		cpu.SetStatus(newValue&0x80 != 0, NegativeFlagBit)
+		cpu.SetRegister(newValue, RegisterA)
+		return newValue, nil
 	})
 }
 
@@ -67,10 +66,10 @@ var ror = InstructionDescription{
 	SubExec: shiftUpdateRight,
 	Access:  ReadModifyWrite,
 	OpcodeMapping: map[Opcode]AddressingMode{
-		0x4A: Accumulator,
-		0x46: ZeroPage,
-		0x56: ZeroPageX,
-		0x4E: Absolute,
-		0x5E: AbsoluteX,
+		0x6A: Accumulator,
+		0x66: ZeroPage,
+		0x76: ZeroPageX,
+		0x6E: Absolute,
+		0x7E: AbsoluteX,
 	},
 }
