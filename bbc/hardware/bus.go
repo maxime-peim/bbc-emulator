@@ -36,7 +36,7 @@ type ReadableComponent interface {
 type WritableComponent interface {
 	AddressableComponent
 	DirectWrite(byte, uint16) error
-	OffsetWrite(byte, uint16, uint8) error
+	OffsetWrite(byte, uint16, uint8) (uint16, error)
 }
 
 func (bus *Bus) componentReadAt(addr uint16) ReadableComponent {
@@ -80,34 +80,60 @@ func (bus *Bus) Tick() error {
 	return bus.Clock.Tick()
 }
 
+// 1 cycle
 func (bus *Bus) DirectRead(addr uint16) (byte, error) {
 	readComponent := bus.componentReadAt(addr)
 	if readComponent == nil {
 		return 0, fmt.Errorf("reading garbage as no component answer for this address %x", addr)
 	}
+	if err := bus.Tick(); err != nil {
+		return 0, err
+	}
 	return readComponent.DirectRead(addr)
 }
 
-func (bus *Bus) OffsetRead(addr uint16, offset uint8) (byte, uint16, error) {
+// 1 cycle, +1 if page crossed or forced
+func (bus *Bus) OffsetRead(addr uint16, offset uint8, forceTick bool) (byte, uint16, error) {
 	readComponent := bus.componentReadAt(addr)
 	if readComponent == nil {
 		return 0, 0, fmt.Errorf("reading garbage as no component answer for this address %x", addr)
 	}
+	if err := bus.Tick(); err != nil {
+		return 0, 0, err
+	}
+	if forceTick || utils.IsPageCrossed(addr, offset) {
+		if err := bus.Tick(); err != nil {
+			return 0, 0, err
+		}
+	}
 	return readComponent.OffsetRead(addr, offset)
 }
 
+// 1 cycle
 func (bus *Bus) DirectWrite(value byte, addr uint16) error {
 	writeComponent := bus.componentWriteAt(addr)
 	if writeComponent == nil {
 		return fmt.Errorf("writing in void as no component answer for this address %x", addr)
 	}
+	if err := bus.Tick(); err != nil {
+		return err
+	}
 	return writeComponent.DirectWrite(value, addr)
 }
 
-func (bus Bus) OffsetWrite(value byte, addr uint16, offset uint8) error {
+// 1 cycle, +1 if page crossed or forced
+func (bus Bus) OffsetWrite(value byte, addr uint16, offset uint8, forceTick bool) (uint16, error) {
 	writeComponent := bus.componentWriteAt(addr)
 	if writeComponent == nil {
-		return fmt.Errorf("writing in void as no component answer for this address %x", addr)
+		return 0, fmt.Errorf("writing in void as no component answer for this address %x", addr)
+	}
+	if err := bus.Tick(); err != nil {
+		return 0, err
+	}
+	if forceTick || utils.IsPageCrossed(addr, offset) {
+		if err := bus.Tick(); err != nil {
+			return 0, err
+		}
 	}
 	return writeComponent.OffsetWrite(value, addr, offset)
 }

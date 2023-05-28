@@ -31,18 +31,10 @@ func (ram *RAM) Stop() error {
 }
 
 func (ram *RAM) DirectRead(addr uint16) (byte, error) {
-	if err := ram.bus.Tick(); err != nil {
-		return 0, err
-	}
 	return ram.memory[addr], nil
 }
 
 func (ram *RAM) OffsetRead(base uint16, offset uint8) (byte, uint16, error) {
-	if utils.IsPageCrossed(base, offset) {
-		if err := ram.bus.Tick(); err != nil {
-			return 0, 0, err
-		}
-	}
 	addr := base + uint16(offset)
 	value, err := ram.DirectRead(addr)
 	if err != nil {
@@ -53,17 +45,15 @@ func (ram *RAM) OffsetRead(base uint16, offset uint8) (byte, uint16, error) {
 
 func (ram *RAM) DirectWrite(value byte, addr uint16) error {
 	ram.memory[addr] = value
-	return ram.bus.Tick()
+	return nil
 }
 
-func (ram *RAM) OffsetWrite(value byte, base uint16, offset uint8) error {
-	if utils.IsPageCrossed(base, offset) {
-		// page crossed
-		if err := ram.bus.Tick(); err != nil {
-			return err
-		}
+func (ram *RAM) OffsetWrite(value byte, base uint16, offset uint8) (uint16, error) {
+	addr := base + uint16(offset)
+	if err := ram.DirectWrite(value, base+uint16(offset)); err != nil {
+		return 0, err
 	}
-	return ram.DirectWrite(value, base+uint16(offset))
+	return addr, nil
 }
 
 func (ram *RAM) Clear() {

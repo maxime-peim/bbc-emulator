@@ -12,8 +12,11 @@ func IsPageCrossed(addr uint16, offset uint8) bool {
 	return (addr+uint16(offset))&0xFF00 != addr&0xFF00
 }
 
+func GetAddressPage(addr uint16) uint16 {
+	return addr & 0xFF00
+}
+
 func SamePageOffset(addr uint16, offset uint8) uint16 {
-	page := addr & 0xFF00
 	low := uint8(addr&0xff) + offset
-	return page | uint16(low)
+	return GetAddressPage(addr) | uint16(low)
 }

@@ -39,8 +39,13 @@ type LogicalCPU interface {
 	Push(byte) error
 	Pop() (byte, error)
 
+	// 1 cycle
 	NextByte() (byte, error)
+	// 2 cycles
 	NextWord() (uint16, error)
+
+	// 1 cycle for fecthing opcode, +n cycles from instruction
+	ExecuteNext() error
 }
 
 var BaseInstructionSet = []InstructionDescription{

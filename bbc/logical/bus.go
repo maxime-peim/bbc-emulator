@@ -14,11 +14,15 @@ var (
 )
 
 type LogicalBus interface {
+	// 1 cycle
 	DirectRead(uint16) (byte, error)
-	OffsetRead(uint16, uint8) (byte, uint16, error)
+	// 1 cycle, +1 if page crossed or forced
+	OffsetRead(uint16, uint8, bool) (byte, uint16, error)
 
+	// 1 cycle
 	DirectWrite(byte, uint16) error
-	OffsetWrite(byte, uint16, uint8) error
+	// 1 cycle, +1 if page crossed or force
+	OffsetWrite(byte, uint16, uint8, bool) (uint16, error)
 
 	Reset()
 	Tick() error
