@@ -2,7 +2,7 @@ package logical
 
 var clc = InstructionDescription{
 	Name: "CLC",
-	SubExec: ExecFn(func(cpu LogicalCPU, bus LogicalBus) error {
+	SubExec: ExecFn(func(cpu LogicalCPU) error {
 		cpu.SetStatus(false, CarryFlagBit)
 		return nil
 	}),
@@ -14,7 +14,7 @@ var clc = InstructionDescription{
 
 var cld = InstructionDescription{
 	Name: "CLD",
-	SubExec: ExecFn(func(cpu LogicalCPU, bus LogicalBus) error {
+	SubExec: ExecFn(func(cpu LogicalCPU) error {
 		cpu.SetStatus(false, DecimalModeFlagBit)
 		return nil
 	}),
@@ -26,7 +26,7 @@ var cld = InstructionDescription{
 
 var cli = InstructionDescription{
 	Name: "CLI",
-	SubExec: ExecFn(func(cpu LogicalCPU, bus LogicalBus) error {
+	SubExec: ExecFn(func(cpu LogicalCPU) error {
 		cpu.SetStatus(false, InterruptDisableFlagBit)
 		return nil
 	}),
@@ -38,7 +38,7 @@ var cli = InstructionDescription{
 
 var clv = InstructionDescription{
 	Name: "CLV",
-	SubExec: ExecFn(func(cpu LogicalCPU, bus LogicalBus) error {
+	SubExec: ExecFn(func(cpu LogicalCPU) error {
 		cpu.SetStatus(false, OverflowFlagBit)
 		return nil
 	}),
@@ -50,7 +50,7 @@ var clv = InstructionDescription{
 
 var sec = InstructionDescription{
 	Name: "SEC",
-	SubExec: ExecFn(func(cpu LogicalCPU, bus LogicalBus) error {
+	SubExec: ExecFn(func(cpu LogicalCPU) error {
 		cpu.SetStatus(true, CarryFlagBit)
 		return nil
 	}),
@@ -62,7 +62,7 @@ var sec = InstructionDescription{
 
 var sed = InstructionDescription{
 	Name: "SED",
-	SubExec: ExecFn(func(cpu LogicalCPU, bus LogicalBus) error {
+	SubExec: ExecFn(func(cpu LogicalCPU) error {
 		cpu.SetStatus(true, CarryFlagBit)
 		return nil
 	}),
@@ -74,7 +74,7 @@ var sed = InstructionDescription{
 
 var sei = InstructionDescription{
 	Name: "SEI",
-	SubExec: ExecFn(func(cpu LogicalCPU, bus LogicalBus) error {
+	SubExec: ExecFn(func(cpu LogicalCPU) error {
 		cpu.SetStatus(true, CarryFlagBit)
 		return nil
 	}),

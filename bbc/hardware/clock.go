@@ -18,6 +18,10 @@ type Clock struct {
 	waitBetweenTicks time.Duration
 }
 
+type ClockHandler struct {
+	*Clock
+}
+
 func (clock *Clock) Tick() error {
 	time.Sleep(clock.waitBetweenTicks - time.Since(clock.lastTickTime))
 	if clock.cycles.Add(1) == 0 {
@@ -46,10 +50,12 @@ func (clock *Clock) Start() error {
 			case <-clock.stopChannel:
 				clock.status = false
 				return
-			case <-clock.freqTimer.C:
+			case currentTime := <-clock.freqTimer.C:
 				currentTicks := clock.GetCycles()
-				simulatedFrequency := currentTicks - clock.lastTicks
+				simulatedFrequency := uint64(float64(currentTicks-clock.lastTicks) / currentTime.Sub(clock.lastTickTime).Seconds())
 				fmt.Printf("Simulated frequency: %d Hz\n", simulatedFrequency)
+				clock.lastTicks = currentTicks
+				clock.lastTickTime = currentTime
 			}
 		}
 	}()

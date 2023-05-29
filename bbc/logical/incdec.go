@@ -1,7 +1,7 @@
 package logical
 
 func incdecRegister(register Register, increment bool) ExecFn {
-	return ExecFn(func(cpu LogicalCPU, bus LogicalBus) error {
+	return ExecFn(func(cpu LogicalCPU) error {
 		value := cpu.GetRegister(register)
 		if increment {
 			value++
@@ -17,7 +17,7 @@ func incdecRegister(register Register, increment bool) ExecFn {
 
 var inc = InstructionDescription{
 	Name: "INC",
-	SubExec: OperationRMWFn(func(value byte, cpu LogicalCPU, bus LogicalBus) (byte, error) {
+	SubExec: OperationRMWFn(func(value byte, cpu LogicalCPU) (byte, error) {
 		cpu.SetStatus(value&0x80 != 0, NegativeFlagBit)
 		cpu.SetStatus(value == 0, ZeroFlagBit)
 		return value + 1, nil
@@ -51,7 +51,7 @@ var iny = InstructionDescription{
 
 var dec = InstructionDescription{
 	Name: "DEC",
-	SubExec: OperationRMWFn(func(value byte, cpu LogicalCPU, bus LogicalBus) (byte, error) {
+	SubExec: OperationRMWFn(func(value byte, cpu LogicalCPU) (byte, error) {
 		cpu.SetStatus(value&0x80 != 0, NegativeFlagBit)
 		cpu.SetStatus(value == 0, ZeroFlagBit)
 		return value - 1, nil

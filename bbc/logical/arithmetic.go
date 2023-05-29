@@ -1,7 +1,7 @@
 package logical
 
 func addToAccumulator(invert bool) AfterReadFn {
-	return AfterReadFn(func(value byte, cpu LogicalCPU, bus LogicalBus) error {
+	return AfterReadFn(func(value byte, cpu LogicalCPU) error {
 		// invert value bit to perform substraction
 		if invert {
 			value = ^value
@@ -24,7 +24,7 @@ func addToAccumulator(invert bool) AfterReadFn {
 }
 
 func cmpRegister(register Register) AfterReadFn {
-	return AfterReadFn(func(value byte, cpu LogicalCPU, bus LogicalBus) error {
+	return AfterReadFn(func(value byte, cpu LogicalCPU) error {
 		reg := cpu.GetRegister(register)
 		cpu.SetStatus(reg >= value, CarryFlagBit)
 		diff := reg - value

@@ -5,12 +5,12 @@ import (
 )
 
 type Opcode byte
-type AfterReadFn func(byte, LogicalCPU, LogicalBus) error
-type BeforeWriteFn func(LogicalCPU, LogicalBus) (byte, error)
-type OperationRMWFn func(byte, LogicalCPU, LogicalBus) (byte, error)
-type TakeBranchFn func(LogicalCPU, LogicalBus) (bool, error)
-type SetupJumpFn func(uint16, LogicalCPU, LogicalBus) error
-type ExecFn func(LogicalCPU, LogicalBus) error
+type AfterReadFn func(byte, LogicalCPU) error
+type BeforeWriteFn func(LogicalCPU) (byte, error)
+type OperationRMWFn func(byte, LogicalCPU) (byte, error)
+type TakeBranchFn func(LogicalCPU) (bool, error)
+type SetupJumpFn func(uint16, LogicalCPU) error
+type ExecFn func(LogicalCPU) error
 
 type Instruction struct {
 	Name   string
@@ -20,12 +20,12 @@ type Instruction struct {
 	subInstructionsByOpcode map[Opcode]ExecFn
 }
 
-func (instruction *Instruction) Execute(opcode Opcode, cpu LogicalCPU, bus LogicalBus) error {
+func (instruction *Instruction) Execute(opcode Opcode, cpu LogicalCPU) error {
 	exec, ok := instruction.subInstructionsByOpcode[opcode]
 	if !ok {
 		return fmt.Errorf("Opcode %x does not belong to instruction %s", opcode, instruction.Name)
 	}
-	return exec(cpu, bus)
+	return exec(cpu)
 }
 
 func (instruction *Instruction) GetOpcodes() []Opcode {
@@ -61,14 +61,12 @@ func (ins *InstructionDescription) RegisterTo(cpu LogicalCPU) error {
 		return fmt.Errorf("addressing function does not exist for access %d", ins.Access)
 	}
 
-	fmt.Printf("\nRegistration %s\n", ins.Name)
+	fmt.Printf("Registration %s\n", ins.Name)
 
 	for opcode, mode := range ins.OpcodeMapping {
 		if i := cpu.GetInstructionByOpcode(opcode); i != nil {
 			return fmt.Errorf("opcode %x already exists", opcode)
 		}
-
-		fmt.Printf(" --- Registration %x\n", opcode)
 
 		var execute ExecFn
 		switch ins.Access {
@@ -78,11 +76,11 @@ func (ins *InstructionDescription) RegisterTo(cpu LogicalCPU) error {
 			if !ok {
 				return fmt.Errorf("access mode and sub-execute funtion signature don't match")
 			}
-			execute = func(cpu LogicalCPU, bus LogicalBus) error {
-				if err := impliedAddressingFn(cpu, bus); err != nil {
+			execute = func(cpu LogicalCPU) error {
+				if err := impliedAddressingFn(cpu); err != nil {
 					return err
 				}
-				return impliedInstructionFn(cpu, bus)
+				return impliedInstructionFn(cpu)
 			}
 		case RelativeAccess:
 			relativeAddressingFn := addressingFnForAccess[mode].(BranchFn)
@@ -90,8 +88,8 @@ func (ins *InstructionDescription) RegisterTo(cpu LogicalCPU) error {
 			if !ok {
 				return fmt.Errorf("access mode and sub-execute funtion signature don't match")
 			}
-			execute = func(cpu LogicalCPU, bus LogicalBus) error {
-				return relativeAddressingFn(relativeInstructionFn, cpu, bus)
+			execute = func(cpu LogicalCPU) error {
+				return relativeAddressingFn(relativeInstructionFn, cpu)
 			}
 		case JumpAccess:
 			jumpAddressingFn := addressingFnForAccess[mode].(JumpFn)
@@ -99,12 +97,12 @@ func (ins *InstructionDescription) RegisterTo(cpu LogicalCPU) error {
 			if !ok {
 				return fmt.Errorf("access mode and sub-execute funtion signature don't match")
 			}
-			execute = func(cpu LogicalCPU, bus LogicalBus) error {
-				addr, err := jumpAddressingFn(cpu, bus)
+			execute = func(cpu LogicalCPU) error {
+				addr, err := jumpAddressingFn(cpu)
 				if err != nil {
 					return nil
 				}
-				return jumpInstructionFn(addr, cpu, bus)
+				return jumpInstructionFn(addr, cpu)
 			}
 		case Read:
 			readAddressingFn := addressingFnForAccess[mode].(ReadFn)
@@ -112,12 +110,12 @@ func (ins *InstructionDescription) RegisterTo(cpu LogicalCPU) error {
 			if !ok {
 				return fmt.Errorf("access mode and sub-execute funtion signature don't match")
 			}
-			execute = func(cpu LogicalCPU, bus LogicalBus) error {
-				value, err := readAddressingFn(cpu, bus)
+			execute = func(cpu LogicalCPU) error {
+				value, err := readAddressingFn(cpu)
 				if err != nil {
 					return err
 				}
-				return readInstructionFn(value, cpu, bus)
+				return readInstructionFn(value, cpu)
 			}
 		case Write:
 			writeAddressingFn := addressingFnForAccess[mode].(WriteFn)
@@ -125,12 +123,12 @@ func (ins *InstructionDescription) RegisterTo(cpu LogicalCPU) error {
 			if !ok {
 				return fmt.Errorf("access mode and sub-execute funtion signature don't match")
 			}
-			execute = func(cpu LogicalCPU, bus LogicalBus) error {
-				value, err := writeInstructionFn(cpu, bus)
+			execute = func(cpu LogicalCPU) error {
+				value, err := writeInstructionFn(cpu)
 				if err != nil {
 					return err
 				}
-				return writeAddressingFn(value, cpu, bus)
+				return writeAddressingFn(value, cpu)
 			}
 		case ReadModifyWrite:
 			rmwAddressingFn := addressingFnForAccess[mode].(ReadModifyWriteFn)
@@ -138,8 +136,8 @@ func (ins *InstructionDescription) RegisterTo(cpu LogicalCPU) error {
 			if !ok {
 				return fmt.Errorf("access mode and sub-execute funtion signature don't match")
 			}
-			execute = func(cpu LogicalCPU, bus LogicalBus) error {
-				return rmwAddressingFn(rmwInstructionFn, cpu, bus)
+			execute = func(cpu LogicalCPU) error {
+				return rmwAddressingFn(rmwInstructionFn, cpu)
 			}
 		}
 

@@ -39,6 +39,9 @@ type LogicalCPU interface {
 	Push(byte) error
 	Pop() (byte, error)
 
+	GetBus() LogicalBus
+	Tick() error
+
 	// 1 cycle
 	NextByte() (byte, error)
 	// 2 cycles

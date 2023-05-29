@@ -1,7 +1,7 @@
 package logical
 
 func shiftUpdate(left bool) OperationRMWFn {
-	return OperationRMWFn(func(value byte, cpu LogicalCPU, bus LogicalBus) (byte, error) {
+	return OperationRMWFn(func(value byte, cpu LogicalCPU) (byte, error) {
 		newValue := byte(0)
 		if left {
 			newValue = value << 1

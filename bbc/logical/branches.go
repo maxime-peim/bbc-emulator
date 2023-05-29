@@ -2,7 +2,7 @@ package logical
 
 var bcc = InstructionDescription{
 	Name: "BCC",
-	SubExec: TakeBranchFn(func(cpu LogicalCPU, bus LogicalBus) (bool, error) {
+	SubExec: TakeBranchFn(func(cpu LogicalCPU) (bool, error) {
 		return !cpu.GetStatus(CarryFlagBit), nil
 	}),
 	Access: RelativeAccess,
@@ -13,7 +13,7 @@ var bcc = InstructionDescription{
 
 var bcs = InstructionDescription{
 	Name: "BCS",
-	SubExec: TakeBranchFn(func(cpu LogicalCPU, bus LogicalBus) (bool, error) {
+	SubExec: TakeBranchFn(func(cpu LogicalCPU) (bool, error) {
 		return cpu.GetStatus(CarryFlagBit), nil
 	}),
 	Access: RelativeAccess,
@@ -24,7 +24,7 @@ var bcs = InstructionDescription{
 
 var beq = InstructionDescription{
 	Name: "BEQ",
-	SubExec: TakeBranchFn(func(cpu LogicalCPU, bus LogicalBus) (bool, error) {
+	SubExec: TakeBranchFn(func(cpu LogicalCPU) (bool, error) {
 		return cpu.GetStatus(ZeroFlagBit), nil
 	}),
 	Access: RelativeAccess,
@@ -35,7 +35,7 @@ var beq = InstructionDescription{
 
 var bmi = InstructionDescription{
 	Name: "BMI",
-	SubExec: TakeBranchFn(func(cpu LogicalCPU, bus LogicalBus) (bool, error) {
+	SubExec: TakeBranchFn(func(cpu LogicalCPU) (bool, error) {
 		return cpu.GetStatus(NegativeFlagBit), nil
 	}),
 	Access: RelativeAccess,
@@ -46,7 +46,7 @@ var bmi = InstructionDescription{
 
 var bne = InstructionDescription{
 	Name: "BNE",
-	SubExec: TakeBranchFn(func(cpu LogicalCPU, bus LogicalBus) (bool, error) {
+	SubExec: TakeBranchFn(func(cpu LogicalCPU) (bool, error) {
 		return !cpu.GetStatus(ZeroFlagBit), nil
 	}),
 	Access: RelativeAccess,
@@ -57,7 +57,7 @@ var bne = InstructionDescription{
 
 var bpl = InstructionDescription{
 	Name: "BPL",
-	SubExec: TakeBranchFn(func(cpu LogicalCPU, bus LogicalBus) (bool, error) {
+	SubExec: TakeBranchFn(func(cpu LogicalCPU) (bool, error) {
 		return !cpu.GetStatus(NegativeFlagBit), nil
 	}),
 	Access: RelativeAccess,
@@ -68,7 +68,7 @@ var bpl = InstructionDescription{
 
 var bvc = InstructionDescription{
 	Name: "BVC",
-	SubExec: TakeBranchFn(func(cpu LogicalCPU, bus LogicalBus) (bool, error) {
+	SubExec: TakeBranchFn(func(cpu LogicalCPU) (bool, error) {
 		return !cpu.GetStatus(OverflowFlagBit), nil
 	}),
 	Access: RelativeAccess,
@@ -79,7 +79,7 @@ var bvc = InstructionDescription{
 
 var bvs = InstructionDescription{
 	Name: "BVS",
-	SubExec: TakeBranchFn(func(cpu LogicalCPU, bus LogicalBus) (bool, error) {
+	SubExec: TakeBranchFn(func(cpu LogicalCPU) (bool, error) {
 		return cpu.GetStatus(OverflowFlagBit), nil
 	}),
 	Access: RelativeAccess,

@@ -1,7 +1,7 @@
 package logical
 
 func storeFrom(register Register) BeforeWriteFn {
-	return BeforeWriteFn(func(cpu LogicalCPU, bus LogicalBus) (byte, error) {
+	return BeforeWriteFn(func(cpu LogicalCPU) (byte, error) {
 		return cpu.GetRegister(register), nil
 	})
 }

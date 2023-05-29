@@ -7,7 +7,7 @@ import (
 )
 
 type Bus struct {
-	Clock        *Clock
+	ClockHandler
 	watchers     map[string]Component
 	addressables map[string]AddressableComponent
 }
@@ -192,7 +192,7 @@ func (bus *Bus) WriteMultiple(values []byte, start uint16) error {
 
 func NewBus(clock *Clock, components ...Component) (*Bus, error) {
 	bus := Bus{
-		Clock:        clock,
+		ClockHandler: ClockHandler{Clock: clock},
 		watchers:     map[string]Component{},
 		addressables: map[string]AddressableComponent{},
 	}

@@ -20,8 +20,8 @@ func (ctx *Context) Reset() {
 var testCtx Context
 
 func TestMain(m *testing.M) {
-	cpu := hardware.NewCPU()
 	clock := hardware.NewClock(2e6)
+	cpu := hardware.NewCPU(clock)
 	ram := hardware.NewRAM()
 
 	bus, err := hardware.NewBus(clock, cpu, ram)

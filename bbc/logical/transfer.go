@@ -1,7 +1,7 @@
 package logical
 
 func transfer(from, to Register) ExecFn {
-	return ExecFn(func(cpu LogicalCPU, bus LogicalBus) error {
+	return ExecFn(func(cpu LogicalCPU) error {
 		value := cpu.GetRegister(from)
 		cpu.SetStatus(value == 0, ZeroFlagBit)
 		cpu.SetStatus(value&0x80 != 0, NegativeFlagBit)

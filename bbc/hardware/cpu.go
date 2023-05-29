@@ -9,6 +9,8 @@ import (
 )
 
 type CPU struct {
+	ClockHandler
+
 	A      uint8
 	X      uint8
 	Y      uint8
@@ -34,8 +36,8 @@ func (cpu *CPU) executeOpcode(opcode logical.Opcode) error {
 	if !ok {
 		return fmt.Errorf("no instruction registered for opcode %x", opcode)
 	}
-	fmt.Printf("Executing %s instruction (opcode %x)\n", instruction.Name, opcode)
-	return instruction.Execute(opcode, cpu, cpu.bus)
+	//fmt.Printf("Executing %s instruction (opcode %x)\n", instruction.Name, opcode)
+	return instruction.Execute(opcode, cpu)
 }
 
 func (cpu *CPU) GetInstruction(name string) *logical.Instruction {
@@ -117,7 +119,6 @@ func (cpu *CPU) GetStatus(flag logical.StatusFlag) bool {
 }
 
 func (cpu *CPU) ExecuteNext() error {
-	preCycles := cpu.bus.Clock.GetCycles()
 	opcode, err := cpu.NextByte()
 	if err != nil {
 		return err
@@ -125,8 +126,6 @@ func (cpu *CPU) ExecuteNext() error {
 	if err := cpu.executeOpcode(logical.Opcode(opcode)); err != nil {
 		return err
 	}
-	postCycles := cpu.bus.Clock.GetCycles()
-	fmt.Printf("Took %d cycles\n", postCycles-preCycles)
 	return nil
 }
 
@@ -179,7 +178,11 @@ func (cpu *CPU) GetName() string { return "CPU" }
 
 func (cpu *CPU) Start() error {
 	cpu.checkBus()
-	return nil
+	for {
+		if err := cpu.ExecuteNext(); err != nil {
+			return err
+		}
+	}
 }
 
 func (cpu *CPU) Reset() error {
@@ -194,10 +197,15 @@ func (cpu *CPU) PlugToBus(bus *Bus) {
 	cpu.bus = bus
 }
 
-func NewCPU() *CPU {
+func (cpu *CPU) GetBus() logical.LogicalBus {
+	return cpu.bus
+}
+
+func NewCPU(clock *Clock) *CPU {
 	status := bitmap.Bitmap{}
 	status.Grow(8)
 	cpu := CPU{
+		ClockHandler:        ClockHandler{Clock: clock},
 		StackPointer:        uint8(logical.StackSegment.Start & 0xff),
 		Status:              status,
 		instructionSet:      map[string]*logical.Instruction{},

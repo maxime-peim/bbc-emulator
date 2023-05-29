@@ -4,7 +4,7 @@ import "bbc/utils"
 
 var jmp = InstructionDescription{
 	Name: "JMP",
-	SubExec: SetupJumpFn(func(addr uint16, cpu LogicalCPU, bus LogicalBus) error {
+	SubExec: SetupJumpFn(func(addr uint16, cpu LogicalCPU) error {
 		nextPCH, nextPCL := utils.AddressToNibbles(addr)
 		cpu.SetRegister(nextPCL, RegisterPCL)
 		cpu.SetRegister(nextPCH, RegisterPCH)
@@ -19,14 +19,14 @@ var jmp = InstructionDescription{
 
 var jsr = InstructionDescription{
 	Name: "JSR",
-	SubExec: SetupJumpFn(func(addr uint16, cpu LogicalCPU, bus LogicalBus) error {
+	SubExec: SetupJumpFn(func(addr uint16, cpu LogicalCPU) error {
 		pch := cpu.GetRegister(RegisterPCH)
 		pcl := cpu.GetRegister(RegisterPCL)
 		pc := utils.AddressFromNibbles(pch, pcl)
 		nextPCH, nextPCL := utils.AddressToNibbles(pc + 2)
 		// https://www.nesdev.org/6502_cpu.txt
 		// internal operation (predecrement S?)
-		if err := bus.Tick(); err != nil {
+		if err := cpu.Tick(); err != nil {
 			return err
 		}
 		cpu.Push(nextPCL)
@@ -44,7 +44,7 @@ var jsr = InstructionDescription{
 
 var rts = InstructionDescription{
 	Name: "RTS",
-	SubExec: ExecFn(func(cpu LogicalCPU, bus LogicalBus) error {
+	SubExec: ExecFn(func(cpu LogicalCPU) error {
 		pcl, err := cpu.Pop()
 		if err != nil {
 			return err

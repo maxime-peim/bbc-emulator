@@ -7,7 +7,7 @@ const (
 )
 
 func logicalOperation(operation uint8) AfterReadFn {
-	return AfterReadFn(func(value byte, cpu LogicalCPU, bus LogicalBus) error {
+	return AfterReadFn(func(value byte, cpu LogicalCPU) error {
 		A := cpu.GetRegister(RegisterA)
 		switch operation {
 		case andOp:
@@ -74,7 +74,7 @@ var ora = InstructionDescription{
 
 var bit = InstructionDescription{
 	Name: "BIT",
-	SubExec: AfterReadFn(func(value byte, cpu LogicalCPU, bus LogicalBus) error {
+	SubExec: AfterReadFn(func(value byte, cpu LogicalCPU) error {
 		anded := value & cpu.GetRegister(RegisterA)
 		cpu.SetStatus(value&0x80 != 0, NegativeFlagBit)
 		cpu.SetStatus(anded == 0, ZeroFlagBit)

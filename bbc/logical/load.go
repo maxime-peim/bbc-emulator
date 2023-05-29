@@ -1,7 +1,7 @@
 package logical
 
 func loadTo(register Register) AfterReadFn {
-	return AfterReadFn(func(value byte, cpu LogicalCPU, bus LogicalBus) error {
+	return AfterReadFn(func(value byte, cpu LogicalCPU) error {
 		cpu.SetStatus(value == 0, ZeroFlagBit)
 		cpu.SetStatus(value&0x80 != 0, NegativeFlagBit)
 		cpu.SetRegister(value, register)

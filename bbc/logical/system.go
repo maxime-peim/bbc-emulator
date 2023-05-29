@@ -4,7 +4,8 @@ import "bbc/utils"
 
 var brk = InstructionDescription{
 	Name: "BRK",
-	SubExec: ExecFn(func(cpu LogicalCPU, bus LogicalBus) error {
+	SubExec: ExecFn(func(cpu LogicalCPU) error {
+		bus := cpu.GetBus()
 		pcl := cpu.GetRegister(RegisterPCL)
 		if err := cpu.Push(pcl); err != nil {
 			return err
@@ -40,7 +41,7 @@ var brk = InstructionDescription{
 
 var nop = InstructionDescription{
 	Name: "NOP",
-	SubExec: ExecFn(func(cpu LogicalCPU, bus LogicalBus) error {
+	SubExec: ExecFn(func(cpu LogicalCPU) error {
 		return nil
 	}),
 	Access: ImpliedAccess,
@@ -51,7 +52,7 @@ var nop = InstructionDescription{
 
 var rti = InstructionDescription{
 	Name: "RTI",
-	SubExec: ExecFn(func(cpu LogicalCPU, bus LogicalBus) error {
+	SubExec: ExecFn(func(cpu LogicalCPU) error {
 		status, err := cpu.Pop()
 		if err != nil {
 			return err

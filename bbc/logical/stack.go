@@ -1,7 +1,7 @@
 package logical
 
 func pushRegister(register Register) ExecFn {
-	return ExecFn(func(cpu LogicalCPU, bus LogicalBus) error {
+	return ExecFn(func(cpu LogicalCPU) error {
 		value := cpu.GetRegister(register)
 		cpu.Push(value)
 		return nil
@@ -9,7 +9,7 @@ func pushRegister(register Register) ExecFn {
 }
 
 func pullRegister(register Register) ExecFn {
-	return ExecFn(func(cpu LogicalCPU, bus LogicalBus) error {
+	return ExecFn(func(cpu LogicalCPU) error {
 		value, err := cpu.Pop()
 		if err != nil {
 			return err
